@@ -1,93 +1,54 @@
 # StructuralTouchRandomModel
 
+## About
+This project provides a stochastic, distance-dependent model for the number of touches between pairs of neurons and functionality to fit the model to data. Notably, if we consider a pair of neurons with at least one touch to be connected, this model is consistent with a model of connection probability that decays exponentially with distance.
 
+The model has two parts: First, a model for the distribution of touches between a pair at a given distance; and second, a model for how its parameters change with distance.
 
-## Getting started
+## Distribution of touches per pair
+The distribution of touches per pair at a given distance is assumed to follow a custom random distribution that I call sis-distribution or (s)tepwise-(i)ncreasing-(s)urvival distribution. In this distribution, the probability that there is another touch between a pair increases with the number of touches between them that have already been confirmed. 
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+Its parameters are as follows:
+    - i: The initial probability, i.e. the probability to find at least one touch. If we assume that a pair is connected if it has at least one touch, then this is the connection probability.
+    - f: The final probability that the process converges against. That is, given that there are already many touches between a pair are confirmed, this is the probability to find another touch
+    - p: Parameterizes how quickly the probability to find another touch converges from i against f.
+    - M: The maximum number of touches possible. That is, the distribution will be cut off at that value. Technically needed to avoid excessive computation times for large values of f, because of the way the distribution is implemented
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+### Definition of the distribution
+Let N be the number of touches between a randomly chosen pair. It is recursively defined as follows:
+    P(N > x | N >= x) = c_x
+    c_x = c_{x-1} + p * (f - c_{x-1})
+    c_0 = i
 
-## Add your files
+### Supported parameters
+    - 0 <= i < 1
+    - 0 <= f < 1
+    - 0 <= p <= 1
+    - M is an integer >= 1
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
+Note that for the purpose of modelling touches per pair, f is expected to be larger than i, but technically it does not have to be.
 
-```
-cd existing_repo
-git remote add origin https://bbpgitlab.epfl.ch/conn/personal/reimann/structuraltouchrandommodel.git
-git branch -M main
-git push -uf origin main
-```
+## Parameters distance-dependence
+Distance-dependence is modelled as follows:
+    - M is not fitted, but must be chosen sufficiently large by the user. This is, because it is merely a technical parameter required to avoid infinite loops. For touches per pair, a value of 100 is generally sufficient.
+    - p is assumed to be constant at all distances.
+    - i is modeled as: i(d) = A_i * exp(-d / B_i). This makes the overall model compatible with exponentially decaying connection probability models.
+    - f is modeled as: f(d) = A_f * exp(-d / B_f) + C_f
+That is, parameters f and i are assumed to be independently distance-dependent, described by five parameters (two for i: A_i and B_i; three for f: A_f, B_f, C_f), p is assumed constant. M is a separate meta-parameter that must be set by the user.
 
-## Integrate with your tools
+## Implementation
+The sis-distribution is implemented as a scipy.stats rv_discrete subclass. That is, like other discrete distributions in scipy.stats, such as binom or geom. It should be usable exactly like those classes, but note that the implementation is wonky and still not fully tested. 
 
-- [ ] [Set up project integrations](https://bbpgitlab.epfl.ch/conn/personal/reimann/structuraltouchrandommodel/-/settings/integrations)
+See the jupyter notebook contained with this repository for an example.
 
-## Collaborate with your team
+## Fitting the model
+The file fitting.py contains a function "optimize_touch_model" that can be used to fit the model to data. 
+It can be used to find a best fit for all six parameters describing the distance-dependent model (A_i, B_i, A_f, B_f, C_f, p). Additionally, any combination of the parameters can set to fixed values by the user; in that case, only the remaining paramters are subject to the fit.
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+As input it requires a pandas.DataFrame with one row per edge in the data. It must contain at least the following columns: "bin", an integer specifying the distance bin an edge belongs to; "count", an integer specifying the number of touches making up the edge. 
+Note that the model is fit only based on the number of touches making up an edge; pairs with 0 touches between them are not taken into account. That means, that the connection probability (probability to find > 0 touches) at a distance is not explicitly fit, but an emerging property!
 
-## Test and Deploy
+See the jupyter notebook contained with this repository for an example.
 
-Use the built-in continuous integration in GitLab.
-
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
-
-***
-
-# Editing this README
-
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
-
-## Suggestions for a good README
-
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
-
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
-
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
-
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
-
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
-
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+### Model for touches per edge (keep graph structure; randomize touch count)
+The file distribution.py contains a function "cut_zeros_and_shift" that converges a distribution of touches per _pair_ into a distribution of _additional_ (i.e. beyond the fist) touches per _edge_. That is, it removes the possibility of 0 touches, and turns the result of n touches into n - 1 touches. It can be used if you want to keep the wiring graph of the data identical, but randomize the number of touches that make up an edge of the graph.

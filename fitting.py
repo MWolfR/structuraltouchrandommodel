@@ -81,7 +81,7 @@ def optimize_touch_model(edge_table, bin_centers, max_num_touches=100, **kwargs)
     sol = minimize(opt_fun, initial_guess, bounds=bounds)
     print(sol.message)
     opt_params = dict([
-                      (_str, sol.x[_i]) if _i >= 0 else kwargs[_str]
+                      (_str, sol.x[_i]) if _i >= 0 else (_str, kwargs[_str])
                        for _i, _str in zip(arg_lo, __args)
                        ])
     opt_models = {
