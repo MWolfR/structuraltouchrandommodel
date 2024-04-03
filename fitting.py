@@ -1,4 +1,6 @@
 import numpy
+import pandas
+import conntility
 
 from distribution import cut_zeros_and_shift, sis
 
@@ -91,4 +93,60 @@ def optimize_touch_model(edge_table, bin_centers, max_num_touches=100, **kwargs)
     }
     return opt_params, opt_models
 
+def keep_edges_randomized_touch_count(M, fitted_parameters, max_touch_count, bin_prop_name="bin"):
+    bin_ids = M.edges[bin_prop_name].values
+    u_bin_ids = numpy.unique(bin_ids)
+    rnd_touches = numpy.zeros(len(M.edges), dtype=int)
+    for bin_id in u_bin_ids:
+        mask = bin_ids == bin_id
+        mdl_extra_touches, _ = cut_zeros_and_shift(  # Convert to distribution of extra touches
+                            sis(
+                                fitted_parameters["i"][bin_id],
+                                fitted_parameters["f"][bin_id],
+                                fitted_parameters["p"],
+                                max_touch_count))
+        rnd_touches[mask] = mdl_extra_touches.rvs(size=mask.sum()) + 1
+    edge_df = pandas.DataFrame({
+        "count": rnd_touches,
+        bin_prop_name: bin_ids
+    })
+    return conntility.ConnectivityMatrix(M._edges, vertex_properties=M._vertex_properties,
+                                        edge_properties=edge_df,
+                                        shape=M._shape, default_edge_property="count")
 
+
+def randomize_edges_and_count(M, fitted_parameters, max_touch_count, distance_bins, distance_cols=["x", "y", "z"]):
+    from scipy.spatial import distance
+    distance_cols=["x", "y", "z"]
+    D = distance.squareform(distance.pdist(M.vertices[distance_cols]))
+    D = numpy.digitize(D, bins=distance_bins) - 1
+    edge_row = []
+    edge_col = []
+    edge_count = []
+    edge_bin_id = []
+
+    for bin_id in range(len(distance_bins)):
+        print(bin_id)
+        nz_row, nz_col = numpy.nonzero(D == bin_id)
+        mdl = sis(fitted_parameters["i"][bin_id],
+                  fitted_parameters["f"][bin_id],
+                  fitted_parameters["p"],
+                  max_touch_count)
+        rvs = mdl.rvs(size=len(nz_row))
+        edge_row.extend(nz_row[rvs > 0])
+        edge_col.extend(nz_col[rvs > 0])
+        edge_count.extend(rvs[rvs > 0])
+        edge_bin_id.extend(numpy.ones(len(edge_count) - len(edge_bin_id), dtype=int) * bin_id)
+
+    edge_idx = pandas.DataFrame({
+        "row": numpy.array(edge_row),
+        "col": numpy.array(edge_col)
+    })
+    edge_df = pandas.DataFrame({
+            "count": numpy.array(edge_count),
+            "bin": numpy.array(edge_bin_id)
+        })
+    M_random = conntility.ConnectivityMatrix(edge_idx, vertex_properties=M._vertex_properties,
+                                             edge_properties=edge_df,
+                                             shape=M._shape, default_edge_property="count")
+    return M_random

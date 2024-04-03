@@ -30,6 +30,7 @@ Note that for the purpose of modelling touches per pair, f is expected to be lar
 
 ## Parameters distance-dependence
 Distance-dependence is modelled as follows:
+
     - M is not fitted, but must be chosen sufficiently large by the user. This is, because it is merely a technical parameter required to avoid infinite loops. For touches per pair, a value of 100 is generally sufficient.
     - p is assumed to be constant at all distances.
     - i is modeled as: i(d) = A_i * exp(-d / B_i). This makes the overall model compatible with exponentially decaying connection probability models.
